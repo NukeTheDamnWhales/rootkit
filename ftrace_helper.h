@@ -159,7 +159,7 @@ static int fh_resolve_hook_address(struct ftrace_hook *hook)
 
     return 0;
 }
-
+/* test */
 /* See comment below within fh_install_hook() */
 static void notrace fh_ftrace_thunk(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *ops, struct pt_regs *regs)
 {
