@@ -3,7 +3,6 @@
  * Author: Harvey Phillips (xcellerator@gmx.com)
  * License: GPL
  * */
-#include "patch.h"
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
 #include <linux/ftrace.h>
