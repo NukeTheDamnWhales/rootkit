@@ -22,7 +22,7 @@ MODULE_LICENSE("GPL");
 
 #define HOOK(_name, _hook, _orig) \
 { \
-    .name = (_name), \
+    .name = SYSCALL_NAME(_name), \
     .function = (_hook), \
     .original = (_orig), \
 }
