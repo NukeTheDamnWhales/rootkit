@@ -10,6 +10,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
+MODULE_LICENSE("GPL");
+
 #if defined(CONFIG_X86_64) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))
 #define PTREGS_SYSCALL_STUBS 1
 #endif
