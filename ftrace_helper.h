@@ -16,6 +16,13 @@ MODULE_LICENSE("GPL");
 #define PTREGS_SYSCALL_STUBS 1
 #endif
 
+/* x64 has to be special and require a different naming convention */
+#ifdef PTREGS_SYSCALL_STUBS
+#define SYSCALL_NAME(name) ("__x64_" name)
+#else
+#define SYSCALL_NAME(name) (name)
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,7,0)
 #define BRUTEFORCE_KADDR 1
 #endif
